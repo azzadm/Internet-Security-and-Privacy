@@ -45,6 +45,10 @@
  * Nakov TCP Socket Forward Server - freeware
  * Version 1.0 - March, 2002
  * (c) 2001 by Svetlin Nakov - http://www.nakov.com
+ * <p>
+ * Nakov TCP Socket Forward Server - freeware
+ * Version 1.0 - March, 2002
+ * (c) 2001 by Svetlin Nakov - http://www.nakov.com
  */
 
 /**
@@ -53,18 +57,11 @@
  * (c) 2001 by Svetlin Nakov - http://www.nakov.com
  */
 
-import java.io.ByteArrayInputStream;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.security.*;
-import java.security.cert.CertificateEncodingException;
-import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.util.Base64;
 
 public class ForwardServer {
     private static final boolean ENABLE_LOGGING = true;
@@ -85,35 +82,6 @@ public class ForwardServer {
      * target host/port, etc.
      */
 
-    public X509Certificate generateCertificate(byte[] preCert) throws CertificateException {
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(preCert);
-        CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
-        return (X509Certificate) certificateFactory.generateCertificate(inputStream);
-    }
-
-    private X509Certificate decodeCertificate(String encodedCert) throws CertificateException {
-        byte[] decodedCert = Base64.getDecoder().decode(encodedCert.getBytes());
-        return generateCertificate(decodedCert);
-    }
-
-    private void verifyCertificate(X509Certificate caCert, X509Certificate clientCert) throws NoSuchProviderException, CertificateException, NoSuchAlgorithmException, InvalidKeyException, SignatureException {
-        PublicKey publicKey = caCert.getPublicKey();
-        clientCert.verify(publicKey);
-    }
-
-    private static X509Certificate getCertificate(String input) throws IOException, CertificateException {
-        CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
-        FileInputStream certInput = new FileInputStream(input);
-        X509Certificate certificate = (X509Certificate) certificateFactory.generateCertificate(certInput);
-        certInput.close();
-        return certificate;
-    }
-
-    private static String encodeCertificate(X509Certificate certificate) throws CertificateEncodingException {
-        //certificate.getEncoded();
-        byte[] encodedCert = Base64.getEncoder().encode(certificate.getEncoded());
-        return new String(encodedCert);
-    }
 
     private void doHandshake() throws Exception {
 
@@ -129,17 +97,17 @@ public class ForwardServer {
 
         fromClient.recv(clientSocket);
         if (fromClient.getParameter("MessageType").equals("ClientHello")) {
-            X509Certificate clientCert = decodeCertificate(fromClient.getParameter("Certificate"));
+            X509Certificate clientCert = CertificateHandler.decodeCertificate(fromClient.getParameter("Certificate"));
             //verifyCertificate(getCertificate((arguments.get("cacert"))), clientCert);
-            verifyCertificate(getCertificate("C:/Users/azadm/IdeaProjects/VPN_Project/ca.pem"), clientCert);
+            CertificateHandler.verifyCertificate(CertificateHandler.getCertificate("C:/Users/azadm/IdeaProjects/VPN_Project/ca.pem"), clientCert);
 
             // This is supposed to be the ServerCertificate, but leave it as is for now
-            X509Certificate cert = getCertificate("C:/Users/azadm/IdeaProjects/VPN_Project/client.pem");
+            X509Certificate cert = CertificateHandler.getCertificate("C:/Users/azadm/IdeaProjects/VPN_Project/client.pem");
 
             // send "userCert", but call it serverCert
 
             toClient.putParameter("MessageType", "ServerHello");
-            toClient.putParameter("Certificate", encodeCertificate(cert));
+            toClient.putParameter("Certificate", CertificateHandler.encodeCertificate(cert));
             toClient.send(clientSocket);
         }
 
@@ -240,3 +208,33 @@ public class ForwardServer {
     }
 
 }
+
+
+    /*public X509Certificate generateCertificate(byte[] preCert) throws CertificateException {
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(preCert);
+        CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
+        return (X509Certificate) certificateFactory.generateCertificate(inputStream);
+    }*/
+
+    /*private X509Certificate decodeCertificate(String encodedCert) throws CertificateException {
+        byte[] decodedCert = Base64.getDecoder().decode(encodedCert.getBytes());
+        return CertificateHandler.generateCertificate(decodedCert);
+    }*/
+
+    /*private void verifyCertificate(X509Certificate caCert, X509Certificate clientCert) throws NoSuchProviderException, CertificateException, NoSuchAlgorithmException, InvalidKeyException, SignatureException {
+        PublicKey publicKey = caCert.getPublicKey();
+        clientCert.verify(publicKey);
+    }*/
+    /*private static X509Certificate getCertificate(String input) throws IOException, CertificateException {
+        CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
+        FileInputStream certInput = new FileInputStream(input);
+        X509Certificate certificate = (X509Certificate) certificateFactory.generateCertificate(certInput);
+        certInput.close();
+        return certificate;
+    }*/
+    /*
+    private static String encodeCertificate(X509Certificate certificate) throws CertificateEncodingException {
+        //certificate.getEncoded();
+        byte[] encodedCert = Base64.getEncoder().encode(certificate.getEncoded());
+        return new String(encodedCert);
+    }*/
