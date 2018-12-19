@@ -49,6 +49,30 @@
  * Nakov TCP Socket Forward Server - freeware
  * Version 1.0 - March, 2002
  * (c) 2001 by Svetlin Nakov - http://www.nakov.com
+ * <p>
+ * Nakov TCP Socket Forward Server - freeware
+ * Version 1.0 - March, 2002
+ * (c) 2001 by Svetlin Nakov - http://www.nakov.com
+ * <p>
+ * Nakov TCP Socket Forward Server - freeware
+ * Version 1.0 - March, 2002
+ * (c) 2001 by Svetlin Nakov - http://www.nakov.com
+ * <p>
+ * Nakov TCP Socket Forward Server - freeware
+ * Version 1.0 - March, 2002
+ * (c) 2001 by Svetlin Nakov - http://www.nakov.com
+ * <p>
+ * Nakov TCP Socket Forward Server - freeware
+ * Version 1.0 - March, 2002
+ * (c) 2001 by Svetlin Nakov - http://www.nakov.com
+ * <p>
+ * Nakov TCP Socket Forward Server - freeware
+ * Version 1.0 - March, 2002
+ * (c) 2001 by Svetlin Nakov - http://www.nakov.com
+ * <p>
+ * Nakov TCP Socket Forward Server - freeware
+ * Version 1.0 - March, 2002
+ * (c) 2001 by Svetlin Nakov - http://www.nakov.com
  */
 
 /**
@@ -61,7 +85,9 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.security.PublicKey;
 import java.security.cert.X509Certificate;
+import java.util.Base64;
 
 public class ForwardServer {
     private static final boolean ENABLE_LOGGING = true;
@@ -72,9 +98,15 @@ public class ForwardServer {
 
     private ServerSocket handshakeSocket;
 
+    private static final String CA = "C:/Users/azadm/IdeaProjects/VPN_Project/Certificates/ca.pem";
+    private static final String serverCertificate = "C:/Users/azadm/IdeaProjects/VPN_Project/Certificates/server.pem";
+
+
     private ServerSocket listenSocket;
     private String targetHost;
     private int targetPort;
+
+    X509Certificate clientCert;
 
 
     /**
@@ -92,25 +124,64 @@ public class ForwardServer {
         Logger.log("Incoming handshake connection from " + clientHostPort);
 
         /* This is where the handshake should take place */
-        HandshakeMessage fromClient = new HandshakeMessage();
-        HandshakeMessage toClient = new HandshakeMessage();
 
-        fromClient.recv(clientSocket);
-        if (fromClient.getParameter("MessageType").equals("ClientHello")) {
-            X509Certificate clientCert = CertificateHandler.decodeCertificate(fromClient.getParameter("Certificate"));
-            //verifyCertificate(getCertificate((arguments.get("cacert"))), clientCert);
-            CertificateHandler.verifyCertificate(CertificateHandler.getCertificate("C:/Users/azadm/IdeaProjects/VPN_Project/ca.pem"), clientCert);
 
-            // This is supposed to be the ServerCertificate, but leave it as is for now
-            X509Certificate cert = CertificateHandler.getCertificate("C:/Users/azadm/IdeaProjects/VPN_Project/client.pem");
+        // Receive clientHello message
+        HandshakeMessage clientHello = new HandshakeMessage();
+        clientHello.recv(clientSocket);
+        if (clientHello.getParameter("MessageType").equals("ClientHello")) {
+            clientCert = CertificateHandler.generateCertificate(clientHello.getParameter("Certificate"));
+            CertificateHandler.verifyCertificate(CertificateHandler.getCertificate(CA), clientCert);
 
-            // send "userCert", but call it serverCert
 
-            toClient.putParameter("MessageType", "ServerHello");
-            toClient.putParameter("Certificate", CertificateHandler.encodeCertificate(cert));
-            toClient.send(clientSocket);
+            // Send serverHello message
+            X509Certificate cert = CertificateHandler.getCertificate(serverCertificate);
+            HandshakeMessage serverHello = new HandshakeMessage();
+            serverHello.putParameter("MessageType", "ServerHello");
+            serverHello.putParameter("Certificate", CertificateHandler.encodeCertificate(cert));
+            serverHello.send(clientSocket);
+        } else {
+            System.out.println("Error on clientHello message handshake");
         }
 
+
+        // Recieve forward message
+        HandshakeMessage forward = new HandshakeMessage();
+        forward.recv(clientSocket);
+        if (forward.getParameter("MessageType").equals("Forward")) {
+            //Handshake.setTargetHost(forward.getParameter("TargetHost"));
+            //Handshake.setTargetPort(Integer.parseInt(forward.getParameter("TargetPort")));
+        } else {
+            System.out.println("Error on forward message handshake");
+        }
+
+        // Values for session message
+        PublicKey clientPublicKey = clientCert.getPublicKey();
+
+        // Encrypt and encode sessionKey
+        SessionKey sessionKey = new SessionKey(128);
+        Handshake.sessionKey = sessionKey;
+
+        byte[] encryptedBytesKey = SessionKey.encryptSessionKey(sessionKey, clientPublicKey);
+        String encodedSessionKey = Base64.getEncoder().encodeToString(encryptedBytesKey);
+
+        //Encrypt and encode sessionIV
+        SessionIV sessionIV = new SessionIV();
+        Handshake.sessionIV = sessionIV;
+        byte[] encryptedBytesIV = SessionIV.encryptSessionIV(sessionIV, clientPublicKey);
+        String encodedSessionIV = Base64.getEncoder().encodeToString(encryptedBytesIV);
+
+
+        // Send session message
+
+        HandshakeMessage sessionMessage = new HandshakeMessage();
+        sessionMessage.putParameter("MessageType", "Session");
+        sessionMessage.putParameter("SessionKey", encodedSessionKey);
+        sessionMessage.putParameter("SessionIV", encodedSessionIV);
+        sessionMessage.send(clientSocket);
+
+
+        System.out.println("Handshake completed, close socket");
 
         clientSocket.close();
 
@@ -134,6 +205,32 @@ public class ForwardServer {
         targetHost = Handshake.targetHost;
         targetPort = Handshake.targetPort;
     }
+
+
+    /*private byte[] encryptSessionKey(SessionKey sessionKey, PublicKey publicKey) throws Exception {
+        String sessionKeyString = sessionKey.encodeKey();
+        byte[] sessionKeyBytes = sessionKeyString.getBytes("utf-8");
+        byte[] encryptedBytes = HandshakeCrypto.encrypt(sessionKeyBytes, publicKey);
+
+        System.out.println("sessionkey: " + sessionKeyString);
+        //String encryptedSessionKey = new String(encryptedBytes, ENCODING);
+        //System.out.println("encrypted: " + encryptedSessionKey);
+
+        return encryptedBytes;
+    }*/
+
+    /*private byte[] encryptSessionIV(SessionIV sessionIV, PublicKey publicKey) throws Exception {
+        String sessionIvString = sessionIV.encodeIV();
+        byte[] sessionIvBytes = sessionIvString.getBytes("utf-8");
+        byte[] encryptedBytes = HandshakeCrypto.encrypt(sessionIvBytes, publicKey);
+
+        System.out.println("sessionIV: " + sessionIvString);
+        //String encryptedSessionKey = new String(encryptedBytes, ENCODING);
+        //System.out.println("encrypted: " + encryptedSessionKey);
+
+        return encryptedBytes;
+    }
+*/
 
     /**
      * Starts the forward server - binds on a given port and starts serving

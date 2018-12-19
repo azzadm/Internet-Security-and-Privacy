@@ -10,12 +10,10 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
-import java.security.SignatureException;
+import java.security.PrivateKey;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.Base64;
 
 public class ForwardClient {
     private static final boolean ENABLE_LOGGING = true;
@@ -23,37 +21,88 @@ public class ForwardClient {
     public static final String DEFAULTSERVERHOST = "localhost";
     public static final String PROGRAMNAME = "ForwardClient";
 
+    private static final String CA = "C:/Users/azadm/IdeaProjects/VPN_Project/Certificates/ca.pem";
+    private static final String clientCertificate = "C:/Users/azadm/IdeaProjects/VPN_Project/Certificates/client.pem";
+
     private static Arguments arguments;
     private static int serverPort;
     private static String serverHost;
+    private static SessionKey sessionKey;
+    private static SessionIV sessionIV;
 
-    private static void doHandshake() throws IOException, CertificateException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException, SignatureException {
+    private static void doHandshake() throws Exception {
 
         /* Connect to forward server server */
         System.out.println("Connect to " + arguments.get("handshakehost") + ":" + Integer.parseInt(arguments.get("handshakeport")));
         Socket socket = new Socket(arguments.get("handshakehost"), Integer.parseInt(arguments.get("handshakeport")));
 
         /* This is where the handshake should take place */
-        HandshakeMessage toServer = new HandshakeMessage();
+
 
         // Extract clientCert from the input parameter, and call method getCertificate
-        X509Certificate cert = CertificateHandler.getCertificate("C:/Users/azadm/IdeaProjects/VPN_Project/client.pem");
+        X509Certificate cert = CertificateHandler.getCertificate(clientCertificate);
 
-        toServer.putParameter("MessageType", "ClientHello");
-        toServer.putParameter("Certificate", CertificateHandler.encodeCertificate(cert));
-        toServer.send(socket);
-
-        HandshakeMessage fromServer = new HandshakeMessage();
+        // Send clientHello message
+        HandshakeMessage clientHello = new HandshakeMessage();
+        clientHello.putParameter("MessageType", "ClientHello");
+        clientHello.putParameter("Certificate", CertificateHandler.encodeCertificate(cert));
+        clientHello.send(socket);
 
         System.out.println("Waiting for incoming data from server...");
-        fromServer.recv(socket);
-        if (fromServer.getParameter("MessageType").equals("ServerHello")) {
-            X509Certificate clientCert = CertificateHandler.decodeCertificate(fromServer.getParameter("Certificate"));
 
-            CertificateHandler.verifyCertificate(CertificateHandler.getCertificate("C:/Users/azadm/IdeaProjects/VPN_Project/ca.pem"), clientCert);
+        // Recieve serverHello message
+        HandshakeMessage serverHello = new HandshakeMessage();
+        serverHello.recv(socket);
+        if (serverHello.getParameter("MessageType").equals("ServerHello")) {
+            X509Certificate clientCert = CertificateHandler.generateCertificate(serverHello.getParameter("Certificate"));
+
+            // Verify serverCertificate
+            CertificateHandler.verifyCertificate(CertificateHandler.getCertificate(CA), clientCert);
+
+
         } else {
             System.out.println("error");
         }
+
+        // send forward message
+        HandshakeMessage forward = new HandshakeMessage();
+        forward.putParameter("MessageType", "Forward");
+        forward.putParameter("TargetHost", arguments.get("targethost"));
+        forward.putParameter("TargetPort", arguments.get("targetport"));
+        forward.send(socket);
+
+
+        // Recieve session message
+        HandshakeMessage session = new HandshakeMessage();
+        session.recv(socket);
+        if (session.getParameter("MessageType").equals("Session")) {
+            PrivateKey clientPrivateKey = HandshakeCrypto.getPrivateKeyFromKeyFile("C:/Users/azadm/IdeaProjects/VPN_Project/Certificates/client-private.der");
+
+            // decode and decrypt session key
+            String encodedKeyString = session.getParameter("SessionKey");
+            byte[] encryptedKeyBytes = Base64.getDecoder().decode(encodedKeyString);
+            byte[] decryptedKeyBytes = HandshakeCrypto.decrypt(encryptedKeyBytes, clientPrivateKey);
+            String encodedSessionKey = new String(decryptedKeyBytes, "UTF-8");
+
+            Handshake.sessionKey = new SessionKey(encodedSessionKey);
+
+            // decode and decrypt sessionIV
+            String encodedIVString = session.getParameter("SessionIV");
+            byte[] encryptedIVBytes = Base64.getDecoder().decode(encodedIVString);
+            byte[] decryptedBytes = HandshakeCrypto.decrypt(encryptedIVBytes, clientPrivateKey);
+            String encodedSessionIV = new String(decryptedBytes, "UTF-8");
+            Handshake.sessionIV = new SessionIV(encodedSessionIV);
+
+            System.out.println("Handshake completeded, close socket");
+
+
+        } else {
+            System.out.println("Invalid handshake");
+            socket.close();
+
+        }
+
+
         socket.close();
 
         /*
@@ -85,7 +134,7 @@ public class ForwardClient {
      * Run handshake negotiation, then set up a listening socket and wait for user.
      * When user has connected, start port forwarder thread.
      */
-    static public void startForwardClient() throws IOException, CertificateException, InvalidKeyException, NoSuchAlgorithmException, NoSuchProviderException, SignatureException {
+    static public void startForwardClient() throws Exception {
 
         doHandshake();
 
@@ -144,7 +193,7 @@ public class ForwardClient {
      * Program entry point. Reads arguments and run
      * the forward server
      */
-    public static void main(String[] args) throws NoSuchProviderException, NoSuchAlgorithmException, InvalidKeyException, SignatureException {
+    public static void main(String[] args) throws Exception {
         try {
             arguments = new Arguments();
             arguments.setDefault("handshakeport", Integer.toString(DEFAULTSERVERPORT));
