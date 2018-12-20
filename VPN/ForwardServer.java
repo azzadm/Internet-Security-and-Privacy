@@ -73,6 +73,14 @@
  * Nakov TCP Socket Forward Server - freeware
  * Version 1.0 - March, 2002
  * (c) 2001 by Svetlin Nakov - http://www.nakov.com
+ * <p>
+ * Nakov TCP Socket Forward Server - freeware
+ * Version 1.0 - March, 2002
+ * (c) 2001 by Svetlin Nakov - http://www.nakov.com
+ * <p>
+ * Nakov TCP Socket Forward Server - freeware
+ * Version 1.0 - March, 2002
+ * (c) 2001 by Svetlin Nakov - http://www.nakov.com
  */
 
 /**
@@ -91,22 +99,23 @@ import java.util.Base64;
 
 public class ForwardServer {
     private static final boolean ENABLE_LOGGING = true;
-    public static final int DEFAULTSERVERPORT = 2206;
-    public static final String DEFAULTSERVERHOST = "localhost";
-    public static final String PROGRAMNAME = "ForwardServer";
+    private static final int DEFAULTSERVERPORT = 2206;
+    private static final String DEFAULTSERVERHOST = "localhost";
+    private static final String PROGRAMNAME = "ForwardServer";
     private static Arguments arguments;
 
     private ServerSocket handshakeSocket;
 
-    private static final String CA = "C:/Users/azadm/IdeaProjects/VPN_Project/Certificates/ca.pem";
-    private static final String serverCertificate = "C:/Users/azadm/IdeaProjects/VPN_Project/Certificates/server.pem";
+    private static final String thisDirectory = System.getProperty("user.dir") + "\\";
+    private static String CA;
+    private static String serverCertificate;
 
 
     private ServerSocket listenSocket;
     private String targetHost;
     private int targetPort;
 
-    X509Certificate clientCert;
+    private X509Certificate clientCert;
 
 
     /**
@@ -131,7 +140,7 @@ public class ForwardServer {
         clientHello.recv(clientSocket);
         if (clientHello.getParameter("MessageType").equals("ClientHello")) {
             clientCert = CertificateHandler.generateCertificate(clientHello.getParameter("Certificate"));
-            CertificateHandler.verifyCertificate(CertificateHandler.getCertificate(CA), clientCert);
+            CertificateHandler.verifyCertificate(CertificateHandler.getCertificate((thisDirectory + CA)), clientCert);
 
 
             // Send serverHello message
@@ -207,31 +216,6 @@ public class ForwardServer {
     }
 
 
-    /*private byte[] encryptSessionKey(SessionKey sessionKey, PublicKey publicKey) throws Exception {
-        String sessionKeyString = sessionKey.encodeKey();
-        byte[] sessionKeyBytes = sessionKeyString.getBytes("utf-8");
-        byte[] encryptedBytes = HandshakeCrypto.encrypt(sessionKeyBytes, publicKey);
-
-        System.out.println("sessionkey: " + sessionKeyString);
-        //String encryptedSessionKey = new String(encryptedBytes, ENCODING);
-        //System.out.println("encrypted: " + encryptedSessionKey);
-
-        return encryptedBytes;
-    }*/
-
-    /*private byte[] encryptSessionIV(SessionIV sessionIV, PublicKey publicKey) throws Exception {
-        String sessionIvString = sessionIV.encodeIV();
-        byte[] sessionIvBytes = sessionIvString.getBytes("utf-8");
-        byte[] encryptedBytes = HandshakeCrypto.encrypt(sessionIvBytes, publicKey);
-
-        System.out.println("sessionIV: " + sessionIvString);
-        //String encryptedSessionKey = new String(encryptedBytes, ENCODING);
-        //System.out.println("encrypted: " + encryptedSessionKey);
-
-        return encryptedBytes;
-    }
-*/
-
     /**
      * Starts the forward server - binds on a given port and starts serving
      */
@@ -268,7 +252,7 @@ public class ForwardServer {
      * Prints given log message on the standart output if logging is enabled,
      * otherwise ignores it
      */
-    public void log(String aMessage) {
+    private void log(String aMessage) {
         if (ENABLE_LOGGING)
             System.out.println(aMessage);
     }
@@ -295,6 +279,10 @@ public class ForwardServer {
         arguments.setDefault("handshakeport", Integer.toString(DEFAULTSERVERPORT));
         arguments.setDefault("handshakehost", DEFAULTSERVERHOST);
         arguments.loadArguments(args);
+        CA = arguments.get("cacert");
+        serverCertificate = arguments.get("usercert");
+        System.out.println("CA directory: " + thisDirectory + CA);
+        System.out.println("Server Certificate directory: " + thisDirectory + serverCertificate);
 
         ForwardServer srv = new ForwardServer();
         try {
@@ -303,35 +291,4 @@ public class ForwardServer {
             e.printStackTrace();
         }
     }
-
 }
-
-
-    /*public X509Certificate generateCertificate(byte[] preCert) throws CertificateException {
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(preCert);
-        CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
-        return (X509Certificate) certificateFactory.generateCertificate(inputStream);
-    }*/
-
-    /*private X509Certificate decodeCertificate(String encodedCert) throws CertificateException {
-        byte[] decodedCert = Base64.getDecoder().decode(encodedCert.getBytes());
-        return CertificateHandler.generateCertificate(decodedCert);
-    }*/
-
-    /*private void verifyCertificate(X509Certificate caCert, X509Certificate clientCert) throws NoSuchProviderException, CertificateException, NoSuchAlgorithmException, InvalidKeyException, SignatureException {
-        PublicKey publicKey = caCert.getPublicKey();
-        clientCert.verify(publicKey);
-    }*/
-    /*private static X509Certificate getCertificate(String input) throws IOException, CertificateException {
-        CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
-        FileInputStream certInput = new FileInputStream(input);
-        X509Certificate certificate = (X509Certificate) certificateFactory.generateCertificate(certInput);
-        certInput.close();
-        return certificate;
-    }*/
-    /*
-    private static String encodeCertificate(X509Certificate certificate) throws CertificateEncodingException {
-        //certificate.getEncoded();
-        byte[] encodedCert = Base64.getEncoder().encode(certificate.getEncoded());
-        return new String(encodedCert);
-    }*/

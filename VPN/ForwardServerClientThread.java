@@ -10,6 +10,12 @@
  * - Two variants - client connects to listening socket or client is already connected
  * <p>
  * Peter Sjodin, KTH
+ * <p>
+ * Modifications for IK2206:
+ * - Server pool removed
+ * - Two variants - client connects to listening socket or client is already connected
+ * <p>
+ * Peter Sjodin, KTH
  */
 
 /**
@@ -29,7 +35,6 @@ import java.net.Socket;
 import java.security.NoSuchAlgorithmException;
 
 public class ForwardServerClientThread extends Thread {
-    private ForwardClient mForwardClient = null;
     private Socket mClientSocket = null;
     private Socket mServerSocket = null;
     private ServerSocket mListenSocket = null;
@@ -40,15 +45,13 @@ public class ForwardServerClientThread extends Thread {
     private String mServerHost;
 
     private boolean vpn = false;
-    private final int encrypting = 0;
-    private final int decrypting = 1;
 
     /**
      * Creates a client thread for handling clients of NakovForwardServer.
      * A client socket should be connected and passed to this constructor.
      * A server socket is created later by run() method.
      */
-    public ForwardServerClientThread(Socket aClientSocket, String serverhost, int serverport) {
+    ForwardServerClientThread(Socket aClientSocket, String serverhost, int serverport) {
         mClientSocket = aClientSocket;
         mServerPort = serverport;
         mServerHost = serverhost;
@@ -59,7 +62,7 @@ public class ForwardServerClientThread extends Thread {
      * Wait for client to connect on client listening socket.
      * A server socket is created later by run() method.
      */
-    public ForwardServerClientThread(ServerSocket listensocket, String serverhost, int serverport) throws IOException {
+    ForwardServerClientThread(ServerSocket listensocket, String serverhost, int serverport) throws IOException {
         mListenSocket = listensocket;
         //mServerHost =  listensocket.getInetAddress().getHostAddress();
         mServerPort = serverport;
@@ -113,6 +116,8 @@ public class ForwardServerClientThread extends Thread {
             // Start forwarding of socket data between server and client
             ForwardThread clientForward;
             ForwardThread serverForward;
+            int encrypting = 0;
+            int decrypting = 1;
             if (vpn) {
                 clientForward = new ForwardThread(this, clientIn, serverOut, decrypting);
                 serverForward = new ForwardThread(this, serverIn, clientOut, encrypting);
@@ -123,17 +128,12 @@ public class ForwardServerClientThread extends Thread {
 
             }
 
-
             mBothConnectionsAreAlive = true;
             clientForward.start();
             serverForward.start();
 
-        } catch (IOException ioe) {
+        } catch (IOException | NoSuchPaddingException | NoSuchAlgorithmException ioe) {
             ioe.printStackTrace();
-        } catch (NoSuchPaddingException e) {
-            e.printStackTrace();
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
         }
     }
 
@@ -143,24 +143,15 @@ public class ForwardServerClientThread extends Thread {
      * is broken (a read/write failure occured). This method disconnects both server
      * and client sockets causing both threads to stop forwarding.
      */
-    public synchronized void connectionBroken() {
+    public synchronized void connectionBroken() throws IOException {
         if (mBothConnectionsAreAlive) {
             // One of the connections is broken. Close the other connection and stop forwarding
             // Closing these socket connections will close their input/output streams
             // and that way will stop the threads that read from these streams
-            try {
-                mServerSocket.close();
-            } catch (IOException e) {
-            }
-            try {
-                mClientSocket.close();
-            } catch (IOException e) {
-            }
-
+            mServerSocket.close();
+            mClientSocket.close();
             mBothConnectionsAreAlive = false;
-
             Logger.log("TCP Forwarding  " + mClientHostPort + " <--> " + mServerHostPort + "  stopped.");
         }
     }
-
 }

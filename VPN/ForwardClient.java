@@ -17,18 +17,21 @@ import java.util.Base64;
 
 public class ForwardClient {
     private static final boolean ENABLE_LOGGING = true;
-    public static final int DEFAULTSERVERPORT = 2206;
-    public static final String DEFAULTSERVERHOST = "localhost";
-    public static final String PROGRAMNAME = "ForwardClient";
-
-    private static final String CA = "C:/Users/azadm/IdeaProjects/VPN_Project/Certificates/ca.pem";
-    private static final String clientCertificate = "C:/Users/azadm/IdeaProjects/VPN_Project/Certificates/client.pem";
-
+    private static final int DEFAULTSERVERPORT = 2206;
+    private static final String DEFAULTSERVERHOST = "localhost";
+    private static final String PROGRAMNAME = "ForwardClient";
     private static Arguments arguments;
+
+
+    private static final String thisDirectory = System.getProperty("user.dir") + "\\";
+    private static String CA;
+    private static String clientCertificate;
+    private static String clientPrivate;
+    private static String serverPrivate;
+
+
     private static int serverPort;
     private static String serverHost;
-    private static SessionKey sessionKey;
-    private static SessionIV sessionIV;
 
     private static void doHandshake() throws Exception {
 
@@ -40,7 +43,7 @@ public class ForwardClient {
 
 
         // Extract clientCert from the input parameter, and call method getCertificate
-        X509Certificate cert = CertificateHandler.getCertificate(clientCertificate);
+        X509Certificate cert = CertificateHandler.getCertificate((thisDirectory + clientCertificate));
 
         // Send clientHello message
         HandshakeMessage clientHello = new HandshakeMessage();
@@ -71,12 +74,13 @@ public class ForwardClient {
         forward.putParameter("TargetPort", arguments.get("targetport"));
         forward.send(socket);
 
+        clientPrivate = arguments.get("key");
 
         // Recieve session message
         HandshakeMessage session = new HandshakeMessage();
         session.recv(socket);
         if (session.getParameter("MessageType").equals("Session")) {
-            PrivateKey clientPrivateKey = HandshakeCrypto.getPrivateKeyFromKeyFile("C:/Users/azadm/IdeaProjects/VPN_Project/Certificates/client-private.der");
+            PrivateKey clientPrivateKey = HandshakeCrypto.getPrivateKeyFromKeyFile(thisDirectory + clientPrivate);
 
             // decode and decrypt session key
             String encodedKeyString = session.getParameter("SessionKey");
@@ -134,7 +138,7 @@ public class ForwardClient {
      * Run handshake negotiation, then set up a listening socket and wait for user.
      * When user has connected, start port forwarder thread.
      */
-    static public void startForwardClient() throws Exception {
+    private static void startForwardClient() throws Exception {
 
         doHandshake();
 
@@ -170,12 +174,12 @@ public class ForwardClient {
      * Prints given log message on the standart output if logging is enabled,
      * otherwise ignores it
      */
-    public static void log(String aMessage) {
+    private static void log(String aMessage) {
         if (ENABLE_LOGGING)
             System.out.println(aMessage);
     }
 
-    static void usage() {
+    private static void usage() {
         String indent = "";
         System.err.println(indent + "Usage: " + PROGRAMNAME + " options");
         System.err.println(indent + "Where options are:");
@@ -194,11 +198,16 @@ public class ForwardClient {
      * the forward server
      */
     public static void main(String[] args) throws Exception {
+        System.out.println(thisDirectory + clientCertificate);
         try {
             arguments = new Arguments();
             arguments.setDefault("handshakeport", Integer.toString(DEFAULTSERVERPORT));
             arguments.setDefault("handshakehost", DEFAULTSERVERHOST);
             arguments.loadArguments(args);
+            CA = arguments.get("cacert");
+            clientCertificate = arguments.get("usercert");
+            System.out.println("CA directory: " + thisDirectory + CA);
+            System.out.println("Server Certificate directory: " + thisDirectory + clientCertificate);
             if (arguments.get("targetport") == null || arguments.get("targethost") == null) {
                 throw new IllegalArgumentException("Target not specified");
             }
@@ -209,45 +218,8 @@ public class ForwardClient {
         }
         try {
             startForwardClient();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (CertificateException e) {
+        } catch (IOException | CertificateException e) {
             e.printStackTrace();
         }
     }
 }
-
-
-// Gets the X509 certificate from the input parameter
-    /*private static X509Certificate getCertificate(String input) throws IOException, CertificateException {
-        certificateFactory = CertificateFactory.getInstance("X.509");
-        FileInputStream certInput = new FileInputStream(input);
-        X509Certificate certificate = (X509Certificate) certificateFactory.generateCertificate(certInput);
-        certInput.close();
-        return certificate;
-    }*/
-
-    /*public static X509Certificate generateCertificate(byte[] preCert) throws CertificateException {
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(preCert);
-        CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
-        return (X509Certificate) certificateFactory.generateCertificate(inputStream);
-    }*/
-
-    /*
-    // Encodes the certificate to send to the server
-    private static String encodeCertificate(X509Certificate certificate) throws CertificateEncodingException {
-        //certificate.getEncoded();
-        byte[] encodedCert = Base64.getEncoder().encode(certificate.getEncoded());
-        return new String(encodedCert);
-    }*/
-
-    /*private static X509Certificate decodeCertificate(String encodedCert) throws CertificateException {
-        byte[] decodedCert = Base64.getDecoder().decode(encodedCert.getBytes());
-        return CertificateHandler.generateCertificate(decodedCert);
-    }*/
-
-
-    /*private static void verifyCertificate(X509Certificate caCert, X509Certificate clientCert) throws NoSuchProviderException, CertificateException, NoSuchAlgorithmException, InvalidKeyException, SignatureException {
-        PublicKey publicKey = caCert.getPublicKey();
-        clientCert.verify(publicKey);
-    }*/

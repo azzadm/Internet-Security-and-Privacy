@@ -18,12 +18,10 @@ import java.security.NoSuchAlgorithmException;
 public class ForwardThread extends Thread {
     private static final int READ_BUFFER_SIZE = 8192;
 
-    private int crypt = -1;
-    private final int encryption = 0;
-    private final int decryption = 1;
-    InputStream mInputStream = null;
-    OutputStream mOutputStream = null;
-    private ForwardServerClientThread mParent = null;
+    private int crypt;
+    private InputStream mInputStream;
+    private OutputStream mOutputStream;
+    private ForwardServerClientThread mParent;
     private SessionEncrypter sessionEncrypter;
     private SessionDecrypter sessionDecrypter;
 
@@ -31,7 +29,7 @@ public class ForwardThread extends Thread {
      * Creates a new traffic forward thread specifying its input stream,
      * output stream and parent thread
      */
-    public ForwardThread(ForwardServerClientThread aParent, InputStream aInputStream, OutputStream aOutputStream, int crypt) throws NoSuchPaddingException, NoSuchAlgorithmException {
+    ForwardThread(ForwardServerClientThread aParent, InputStream aInputStream, OutputStream aOutputStream, int crypt) throws NoSuchPaddingException, NoSuchAlgorithmException {
         mInputStream = aInputStream;
         mOutputStream = aOutputStream;
         mParent = aParent;
@@ -50,6 +48,8 @@ public class ForwardThread extends Thread {
         try {
             while (true) {
                 System.out.println(crypt);
+                int decryption = 1;
+                int encryption = 0;
                 if (crypt == encryption) {
                     System.out.println("ENCRYPTING");
                     int bytesRead = mInputStream.read(buffer);

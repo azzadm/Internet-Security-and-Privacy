@@ -61,15 +61,12 @@ public class HandshakeCrypto {
 
     // The getPublicKeyFromCertFile method extracts a public key from a certificate file.
     public static PublicKey getPublicKeyFromCertFile(String certfile) {
-
         try {
             fact = CertificateFactory.getInstance("X.509");
             certifcateFile = new FileInputStream(certfile);
             certificate = (X509Certificate) fact.generateCertificate(certifcateFile);
 
-        } catch (CertificateException e) {
-            e.printStackTrace();
-        } catch (FileNotFoundException e) {
+        } catch (CertificateException | FileNotFoundException e) {
             e.printStackTrace();
         }
         return certificate.getPublicKey();

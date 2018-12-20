@@ -20,23 +20,26 @@ public class CertificateHandler {
     }
 
     // Generates certificate from byte []
-    public static X509Certificate generateCertificate(byte[] preCert) throws CertificateException {
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(preCert);
+    public static X509Certificate generateCertificate(String preCert) throws CertificateException {
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(preCert.getBytes());
         CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
         return (X509Certificate) certificateFactory.generateCertificate(inputStream);
     }
 
     // Encodes the certificate to send to the server
     public static String encodeCertificate(X509Certificate certificate) throws CertificateEncodingException {
-        //certificate.getEncoded();
-        byte[] encodedCert = Base64.getEncoder().encode(certificate.getEncoded());
-        return new String(encodedCert);
-    }
+        /*byte[] encodedCert = Base64.getEncoder().encode(certificate.getEncoded());
+        return new String(encodedCert);*/
 
-    // Decodes certificate with Base64
-    public static X509Certificate decodeCertificate(String encodedCert) throws CertificateException {
-        byte[] decodedCert = Base64.getDecoder().decode(encodedCert.getBytes());
-        return CertificateHandler.generateCertificate(decodedCert);
+        String LINE_SEPARATOR = System.getProperty("line.separator");
+        String BEGIN_CERT = "-----BEGIN CERTIFICATE-----";
+        String END_CERT = "-----END CERTIFICATE-----";
+
+        Base64.Encoder encoder = Base64.getMimeEncoder(64, LINE_SEPARATOR.getBytes());
+
+        byte[] rawCrtText = certificate.getEncoded();
+        String encodedCertText = new String(encoder.encode(rawCrtText));
+        return BEGIN_CERT + LINE_SEPARATOR + encodedCertText + LINE_SEPARATOR + END_CERT;
     }
 
     // Verifies certificate with CAs public key and user certificate
